@@ -111,10 +111,37 @@ type Thread struct {
 	ReplyCount int
 }
 
+func threadOpen(id int) {
+	id_str := strconv.Itoa(id)
+	fp, e := os.Open(id_str)
+	if (e != nil) { return }
+	r := csv.NewReader(fp)
+	op, _ := r.Read()
+
+	thread := new(Thread)
+	thread.Subject = op[3]
+	thread.Post = Post{op[0], op[1], op[2], 0}
+	for i := 0; i < 300; i = i + 1 {
+		a_reply, _ := r.Read()
+		if (a_reply == nil) { break }
+		thread.Replies = make([]Post, 0, 300)
+		p := new(Post)
+		p.Name = a_reply[0]
+		p.Comment = a_reply[2]
+		p.Time = a_reply[1]
+		p.Count, _ = strconv.Atoi(a_reply[3])
+	        thread.Replies = thread.Replies[:thread.ReplyCount+1]
+	        thread.Replies[thread.ReplyCount] = *p
+	        thread.ReplyCount = thread.ReplyCount + 1
+	}
+	fmt.Printf("LOAD FROM FILE: %s\n", thread)
+}
+
 func threadFind(id int) (*Thread, bool) {
 	i := 0
 	for ; i < len(activeThreads) || id < len(activeThreads); i++ {
 		if activeThreads[i].Post.Count == id {
+			threadOpen(i)
 			return activeThreads[i], true
 		}
 	}
@@ -135,7 +162,7 @@ func threadCreate(name string, options string, subject string, comment string) {
 	fp, _ := os.Create(id_str)
 	defer fp.Close()
 	w := csv.NewWriter(fp)
-	w.Write([]string{t.Post.Name, t.Post.Time, t.Post.Comment})
+	w.Write([]string{t.Post.Name, t.Post.Time, t.Post.Comment, t.Subject})
 	w.Flush()
 }
 
@@ -175,6 +202,17 @@ func postPostNew(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p := postCreate(r.FormValue("name"), r.FormValue("email"), r.FormValue("comment"))
+
+	fp, e := os.OpenFile(id_str, os.O_APPEND | os.O_WRONLY, 0644)
+	if (e != nil) {
+		fmt.Printf("failed to open")
+	}
+	fmt.Printf("open file: %s\n", id_str)
+	defer fp.Close()
+	wr := csv.NewWriter(fp)
+	wr.Write([]string{p.Name, p.Time, p.Comment, string(p.Count)})
+	fmt.Printf("open file: %s\t%s\t%s\n", p.Name, p.Time, p.Comment)
+	wr.Flush()
 
 	thread.Replies = thread.Replies[:thread.ReplyCount+1]
 	thread.Replies[thread.ReplyCount] = *p
