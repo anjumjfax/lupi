@@ -24,13 +24,14 @@ import (
 	"html/template"
 	"net/http"
 	"os"
+	"io"
 	"io/ioutil"
 	"strconv"
 	"time"
 )
 
 var form string = `<html>
-<form action="thread" method="POST">
+<form enctype="multipart/form-data" action="thread" method="POST">
 <table>
 <tr>
 <td><label>Name</label></td>
@@ -43,6 +44,10 @@ var form string = `<html>
 <tr>
 <td><label>Subject</label></td>
 <td><input type="text" name="subject"/>
+</tr>
+<tr>
+<td><label>File</label>
+<td><input type="file" name="file"/>
 <input type="submit" value="post"/></td>
 </tr>
 <tr>
@@ -221,7 +226,19 @@ func postPostNew(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/thread/"+id_str, http.StatusFound)
 }
 
+
 func threadPostNew(w http.ResponseWriter, r *http.Request) {
+	r.ParseMultipartForm(32 << 20)
+	file, handler, e := r.FormFile("file")
+	if (e != nil) {
+		fmt.Printf("no file")
+	} else {
+		defer file.Close()
+		fp, err := os.OpenFile(handler.Filename, os.O_WRONLY | os.O_CREATE, 0666)
+		if (err != nil) { fmt.Printf("could not create file")} else { defer fp.Close() }
+		io.Copy(fp, file)
+	}
+
 	threadCreate(r.FormValue("name"), r.FormValue("email"), r.FormValue("subject"), r.FormValue("comment"))
 	http.Redirect(w, r, "/thread/"+strconv.Itoa(count-1), http.StatusFound)
 }
