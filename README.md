@@ -1,0 +1,2 @@
+# lupi
+An imageboard
