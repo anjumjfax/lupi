@@ -22,10 +22,10 @@ import (
 	"encoding/csv"
 	"fmt"
 	"html/template"
-	"net/http"
-	"os"
 	"io"
 	"io/ioutil"
+	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -116,37 +116,46 @@ type Thread struct {
 	ReplyCount int
 }
 
-func threadOpen(id int) {
+func threadOpen(id int) (*Thread, bool) {
 	id_str := strconv.Itoa(id)
 	fp, e := os.Open(id_str)
-	if (e != nil) { return }
+	if e != nil {
+		return nil, true
+	}
 	r := csv.NewReader(fp)
 	op, _ := r.Read()
 
 	thread := new(Thread)
 	thread.Subject = op[3]
-	thread.Post = Post{op[0], op[1], op[2], 0}
+	thread.ReplyCount = 0
+	thread.Post = Post{op[0], op[2], op[1], id}
 	for i := 0; i < 300; i = i + 1 {
 		a_reply, _ := r.Read()
-		if (a_reply == nil) { break }
+		if a_reply == nil {
+			break
+		}
 		thread.Replies = make([]Post, 0, 300)
 		p := new(Post)
 		p.Name = a_reply[0]
 		p.Comment = a_reply[2]
 		p.Time = a_reply[1]
 		p.Count, _ = strconv.Atoi(a_reply[3])
-	        thread.Replies = thread.Replies[:thread.ReplyCount+1]
-	        thread.Replies[thread.ReplyCount] = *p
-	        thread.ReplyCount = thread.ReplyCount + 1
+		thread.Replies = thread.Replies[:thread.ReplyCount+1]
+		thread.Replies[thread.ReplyCount] = *p
+		thread.ReplyCount = thread.ReplyCount + 1
 	}
 	fmt.Printf("LOAD FROM FILE: %s\n", thread)
+	return thread, false
 }
 
 func threadFind(id int) (*Thread, bool) {
+	thread, e := threadOpen(id)
+	if e != true {
+		return thread, true
+	}
 	i := 0
 	for ; i < len(activeThreads) || id < len(activeThreads); i++ {
 		if activeThreads[i].Post.Count == id {
-			threadOpen(i)
 			return activeThreads[i], true
 		}
 	}
@@ -171,7 +180,7 @@ func threadCreate(name string, options string, subject string, comment string) {
 	w.Flush()
 }
 
-func loadCache(){
+func loadCache() {
 	files, err := ioutil.ReadDir("./")
 	if err != nil {
 		fmt.Println(err)
@@ -208,14 +217,14 @@ func postPostNew(w http.ResponseWriter, r *http.Request) {
 
 	p := postCreate(r.FormValue("name"), r.FormValue("email"), r.FormValue("comment"))
 
-	fp, e := os.OpenFile(id_str, os.O_APPEND | os.O_WRONLY, 0644)
-	if (e != nil) {
+	fp, e := os.OpenFile(id_str, os.O_APPEND|os.O_WRONLY, 0644)
+	if e != nil {
 		fmt.Printf("failed to open")
 	}
 	fmt.Printf("open file: %s\n", id_str)
 	defer fp.Close()
 	wr := csv.NewWriter(fp)
-	wr.Write([]string{p.Name, p.Time, p.Comment, string(p.Count)})
+	wr.Write([]string{p.Name, p.Time, p.Comment, strconv.Itoa(p.Count)})
 	fmt.Printf("open file: %s\t%s\t%s\n", p.Name, p.Time, p.Comment)
 	wr.Flush()
 
@@ -226,16 +235,19 @@ func postPostNew(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/thread/"+id_str, http.StatusFound)
 }
 
-
 func threadPostNew(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(32 << 20)
 	file, handler, e := r.FormFile("file")
-	if (e != nil) {
+	if e != nil {
 		fmt.Printf("no file")
 	} else {
 		defer file.Close()
-		fp, err := os.OpenFile(handler.Filename, os.O_WRONLY | os.O_CREATE, 0666)
-		if (err != nil) { fmt.Printf("could not create file")} else { defer fp.Close() }
+		fp, err := os.OpenFile(handler.Filename, os.O_WRONLY|os.O_CREATE, 0666)
+		if err != nil {
+			fmt.Printf("could not create file")
+		} else {
+			defer fp.Close()
+		}
 		io.Copy(fp, file)
 	}
 
