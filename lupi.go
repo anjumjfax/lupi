@@ -128,13 +128,13 @@ func threadOpen(id int) (*Thread, bool) {
 	thread := new(Thread)
 	thread.Subject = op[3]
 	thread.ReplyCount = 0
+	thread.Replies = make([]Post, 0, 300)
 	thread.Post = Post{op[0], op[2], op[1], id}
 	for i := 0; i < 300; i = i + 1 {
 		a_reply, _ := r.Read()
 		if a_reply == nil {
 			break
 		}
-		thread.Replies = make([]Post, 0, 300)
 		p := new(Post)
 		p.Name = a_reply[0]
 		p.Comment = a_reply[2]
@@ -209,11 +209,11 @@ func postPostNew(w http.ResponseWriter, r *http.Request) {
 	id_str := r.URL.Path[len("/post/"):]
 	id, _ := strconv.Atoi(id_str)
 	fmt.Printf("Reply thread: %d\n", id)
-	thread, found := threadFind(id)
+	//thread, found := threadFind(id)
 
-	if !found {
-		http.Error(w, "could not find thread", http.StatusInternalServerError)
-	}
+	//if !found {
+	//	http.Error(w, "could not find thread", http.StatusInternalServerError)
+	//}
 
 	p := postCreate(r.FormValue("name"), r.FormValue("email"), r.FormValue("comment"))
 
@@ -228,9 +228,9 @@ func postPostNew(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("open file: %s\t%s\t%s\n", p.Name, p.Time, p.Comment)
 	wr.Flush()
 
-	thread.Replies = thread.Replies[:thread.ReplyCount+1]
-	thread.Replies[thread.ReplyCount] = *p
-	thread.ReplyCount = thread.ReplyCount + 1
+	//thread.Replies = thread.Replies[:thread.ReplyCount+1]
+	//thread.Replies[thread.ReplyCount] = *p
+	//thread.ReplyCount = thread.ReplyCount + 1
 	fmt.Printf("Replying to thread no: %d", id)
 	http.Redirect(w, r, "/thread/"+id_str, http.StatusFound)
 }
